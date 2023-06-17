@@ -1,0 +1,2 @@
+Total Time Taken To Generate File 43.744875ms
+cargo:rerun-if-changed=src

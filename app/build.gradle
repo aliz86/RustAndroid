@@ -1,0 +1,100 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'com.techyourchance.alaki'
+    compileSdk 33
+
+    defaultConfig {
+        applicationId "com.techyourchance.alaki"
+        minSdk 24
+        targetSdk 33
+        versionCode 1
+        versionName "1.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        vectorDrawables {
+            useSupportLibrary true
+        }
+        ndk.abiFilters 'armeabi-v7a','arm64-v8a','x86','x86_64' // add this line
+    }
+    sourceSets {
+        main {
+            jniLibs.srcDirs = ['src/main/libs']
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    buildFeatures {
+        viewBinding true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+}
+
+dependencies {
+
+    implementation 'androidx.core:core-ktx:1.7.0'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.9.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+}
+
+// add the following
+def rustBasePath = "../rust_lib"
+def archTriplets = [
+        'armeabi-v7a': 'armv7-linux-androideabi',
+        'arm64-v8a': 'aarch64-linux-android',
+]
+
+archTriplets.each { arch, target ->
+    project.ext.cargo_target_directory = rustBasePath + "/target"
+    // Build with cargo
+    tasks.create(name: "cargo-build-${arch}", type: Exec, description: "Building core for ${arch}") {
+        workingDir rustBasePath
+        commandLine 'cargo', 'build', "--target=${target}", '--release'
+    }
+    // Sync shared native dependencies
+    tasks.create(name: "sync-rust-deps-${arch}", type: Sync, dependsOn: "cargo-build-${arch}") {
+        from "${rustBasePath}/src/libs/${arch}"
+        include "*.so"
+        into "src/main/libs/${arch}"
+    }
+    // Copy build libs into this app's libs directory
+    tasks.create(name: "rust-deploy-${arch}", type: Copy, dependsOn: "sync-rust-deps-${arch}", description: "Copy rust libs for (${arch}) to jniLibs") {
+        from "${project.ext.cargo_target_directory}/${target}/release"
+        include "*.so"
+        into "src/main/libs/${arch}"
+    }
+
+    // Hook up tasks to execute before building java
+    tasks.withType(JavaCompile) {
+        compileTask -> compileTask.dependsOn "rust-deploy-${arch}"
+    }
+    preBuild.dependsOn "rust-deploy-${arch}"
+
+    // Hook up clean tasks
+    tasks.create(name: "clean-${arch}", type: Delete, description: "Deleting built libs for ${arch}", dependsOn: "cargo-output-dir-${arch}") {
+        delete fileTree("${project.ext.cargo_target_directory}/${target}/release") {
+            include '*.so'
+        }
+    }
+    clean.dependsOn "clean-${arch}"
+}

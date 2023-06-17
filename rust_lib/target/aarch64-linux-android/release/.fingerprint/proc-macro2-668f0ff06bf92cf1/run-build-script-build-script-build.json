@@ -1,0 +1,1 @@
+{"rustc":16063275471441760960,"features":"","target":0,"profile":0,"path":0,"deps":[[18317509841486736723,"build_script_build",false,13947317857153788286]],"local":[{"RerunIfChanged":{"output":"aarch64-linux-android/release/build/proc-macro2-668f0ff06bf92cf1/output","paths":["build.rs"]}}],"rustflags":[],"metadata":0,"config":0,"compile_kind":0}
